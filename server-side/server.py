@@ -12,6 +12,7 @@ from datetime import datetime
 import threading
 import argparse
 import secrets
+import random
 import socket
 import json
 import sys
@@ -30,6 +31,12 @@ PORT = int(arg.p)
 
 
 class Rooms:
+    welcomeMsg = ["Welcome {}, say hi!",
+                  "{} hooped into this room",
+                  "{} just slid to this room",
+                  "Glad you are here, {}}",
+                  "Welcome {}, we hope you brought pizza"]
+
     def __init__(self, roomName, socket):
         self.__roomName = roomName
         self.__userList = []
@@ -44,8 +51,10 @@ class Rooms:
         return len(self.__userList)
 
     def addUser(self, addr, username):
+        welcomemsg = random.choice(self.welcomeMsg)
+
         self.__userList.append(addr)
-        self.broadcast(f"Welcome {username}, say hi!", addr)
+        self.broadcast(welcomemsg.format(username), addr)
 
     def delUser(self, addr, username):
         self.__userList.remove(addr)
