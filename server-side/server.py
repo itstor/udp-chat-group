@@ -2,12 +2,12 @@
 message format
 {
     "method":"CONNECT/LOGIN/LOGOUT/SEND",
-    "token":"user token",
-    "username":"username",
-    "room":"room name",
+    "token":"user token", #!required ALL except CONNECT
+    "username":"username", #!required ALL except CONNECT
+    "room":"room name", #!required LOGIN
+    "msg":"message" #!required SEND
 }
 '''
-
 from datetime import datetime
 import threading
 import argparse
@@ -40,6 +40,9 @@ class Rooms:
     def __del__(self):
         log(f"Room {self.__roomName} deleted")
 
+    def get_user_count(self):
+        return len(self.__userList)
+
     def addUser(self, addr, username):
         self.__userList.append(addr)
         self.broadcast(f"Welcome {username}, say hi!", addr)
@@ -56,9 +59,9 @@ class Rooms:
 
         msg = msg.encode('utf-8')
 
-        for user in self.__userList:
-            if username != user:
-                self.socket.sendto(msg, user)
+        for user_addr in self.__userList:
+            if addr != user_addr:
+                self.socket.sendto(msg, user_addr)
 
 
 class UDPServer:
@@ -88,8 +91,55 @@ class UDPServer:
         for user in list(self.__userList.keys()):
             self.socket.sendto(msg, self.__userList[user][0])
 
-    def get_user_count(self):
-        return len(self.__userList)
+    def send_token(self, addr):
+        token = secrets.token_urlsafe(8)
+        log(f"{addr[0]}:{addr[1]} connected to this server")
+        self.socket.sendto(token.encode('utf-8'), addr)
+
+    def user_login(self, addr, data):
+        username = data['username']
+        room = data['room']
+        token = data['token']
+
+        if username not in self.__userList.keys():
+            if room not in self.__roomList:
+                self.__roomList[room] = Rooms(
+                    room, self.socket)
+
+            userConf = [addr, room, token]
+            self.__userList[username] = userConf
+            self.__roomList[room].addUser(addr, username)
+            log(
+                f"{addr[0]}:{addr[1]} with username {username} joined to {room}")
+
+            return
+
+        self.socket.sendto("[!USRUNAVL]".encode('utf-8'), addr)
+
+    def user_logout(self, addr, data):
+        token = data['token']
+        username = data['username']
+        user_room = self.__userList[username][1]
+        user_token = self.__userList[username][2]
+
+        if token == user_token:
+            self.__roomList[user_room].delUser(addr, username)
+            del self.__userList[username]
+
+            if self.__roomList[user_room].get_user_count() == 0:
+                del self.__roomList[user_room]
+
+    def send_msg(self, addr, data):
+        msg = data["msg"]
+        token = data['token']
+        username = data['username']
+
+        user_room = self.__userList[username][1]
+        user_token = self.__userList[username][2]
+
+        if token == user_token:
+            self.__roomList[user_room].broadcast(
+                msg, addr, username)
 
     def listen(self):
         while True:
@@ -100,59 +150,27 @@ class UDPServer:
                 method = data["method"]
 
                 if method == "CONNECT":
-                    token = secrets.token_urlsafe(8)
-                    log(f"{addr[0]}:{addr[1]} connected to this server")
-                    self.socket.sendto(token.encode('utf-8'), addr)
+                    threading.Thread(target=self.send_token,
+                                     args=(addr,)).start()
 
-                else:
-                    username = data["username"]
-                    token = data["token"]
+                elif method == "LOGIN":
+                    threading.Thread(target=self.user_login,
+                                     args=(addr, data,)).start()
 
-                    if method == "LOGIN":
-                        room = data["room"]
-                        if username not in self.__userList.keys():
-                            if room not in self.__roomList:
-                                self.__roomList[room] = Rooms(
-                                    room, self.socket)
+                elif method == "LOGOUT":
+                    threading.Thread(target=self.user_logout,
+                                     args=(addr, data)).start()
 
-                            userConf = [addr, room, token]
-                            self.__userList[username] = userConf
-                            self.__roomList[room].addUser(addr, username)
-                            log(
-                                f"{addr[0]}:{addr[1]} with username {username} joined to {room}")
-                            continue
+                elif method == "SEND":
+                    threading.Thread(target=self.send_msg,
+                                     args=(addr, data)).start()
 
-                        self.socket.sendto("[!USRUNAVL]".encode('utf-8'), addr)
-
-                    elif method == "LOGOUT":
-                        user_room = self.__userList[username][1]
-                        user_token = self.__userList[username][2]
-
-                        if token == user_token:
-                            self.__roomList[user_room].delUser(addr, username)
-                            del self.__userList[username]
-
-                            if self.__roomList[user_room].get_user_count() == 0:
-                                del self.__roomList[user_room]
-
-                    elif method == "SEND":
-                        msg = data["msg"]
-                        user_room = self.__userList[username][1]
-                        user_token = self.__userList[username][2]
-
-                        if token == user_token:
-                            self.__roomList[user_room].broadcast(
-                                msg, addr, username)
-
-                    else:
-                        log(msg)
             except Exception as e:
                 log(e)
-                continue
 
 
 def log(msg):
-    time = datetime.time()
+    time = datetime.now()
 
     time = time.strftime("%H:%M:%S")
     print(f"[{time}] {msg}")
