@@ -33,9 +33,14 @@ class Rooms:
         self.__userList.remove(addr)
         self.broadcast(f"{username} leave the room", addr)
 
-    def broadcast(self, msg, addr):
+    def broadcast(self, msg, addr, username=None):
+        if username is not None:
+            log(f"{username}({self.__roomName}) > {msg}")
+
+        msg = msg.encode('utf-8')
+
         for user in self.__userList:
-            socket.sendto(msg, user)
+            self.socket.sendto(msg, user)
 
 
 class UDPServer:
@@ -50,23 +55,18 @@ class UDPServer:
     def start(self):
         self.socket.bind((self.ip, self.port))
 
-        self.log(f"Server running on {self.ip}:{self.port}")
+        log(f"Server running on {self.ip}:{self.port}")
         self.listen()
 
     def stop(self):
-        self.log("Server stopped")
+        log("Server stopped")
         self.server_broadcast("Server has been stopped")
         self.socket.close()
         sys.exit()
 
-    def log(self, msg):
-        now = datetime.now()
-
-        now = now.strftime("%H: %M: %S")
-        print(f"[{now}] {msg}")
-
     def server_broadcast(self, msg):
         msg = msg.encode('utf-8')
+
         for user in list(self.__userList.keys()):
             self.socket.sendto(msg, self.__userList[user][0])
 
@@ -80,13 +80,13 @@ class UDPServer:
 
                 if method == "CONNECT":
                     token = secrets.token_urlsafe(16)
-                    self.log(f"{addr[0]}:{addr[1]} connected to this server")
+                    log(f"{addr[0]}:{addr[1]} connected to this server")
                     self.socket.sendto(token.encode('utf-8'), addr)
 
                 else:
                     room = data["room"]
                     username = data["username"]
-                    msg = data["msg"].encode('utf-8')
+                    msg = data["msg"]
 
                     if method == "LOGIN":
                         if username not in self.__userList.keys():
@@ -97,7 +97,7 @@ class UDPServer:
                             userConf = [addr, room]
                             self.__userList[username] = userConf
                             self.__roomList[room].addUser(addr, username)
-                            self.log(
+                            log(
                                 f"{addr[0]}:{addr[1]} with username {username} joined to {room}")
                             continue
 
@@ -112,14 +112,21 @@ class UDPServer:
                     elif method == "SEND":
                         user_room = self.__userList[username][1]
 
-                        self.__roomList[user_room].broadcast(msg, addr)
-                        self.log(f"{username}({room}) > {msg.decode('utf-8')}")
+                        self.__roomList[user_room].broadcast(
+                            msg, addr, username)
 
                     else:
-                        self.log(msg)
+                        log(msg)
             except Exception as e:
                 print(e)
                 continue
+
+
+def log(msg):
+    now = datetime.now()
+
+    now = now.strftime("%H:%M:%S")
+    print(f"[{now}] {msg}")
 
 
 server = UDPServer(IP_ADDRESS, PORT)
