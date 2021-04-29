@@ -1,3 +1,13 @@
+'''
+message format
+{
+    "method":"CONNECT/LOGIN/LOGOUT/SEND",
+    "token":"user token",
+    "username":"username",
+    "room":"room name",
+}
+'''
+
 from datetime import datetime
 import threading
 import argparse
@@ -25,6 +35,11 @@ class Rooms:
         self.__userList = []
         self.socket = socket
 
+        log(f"Created room {self.__roomName}")
+
+    def __del__(self):
+        log(f"Room {self.__roomName} deleted")
+
     def addUser(self, addr, username):
         self.__userList.append(addr)
         self.broadcast(f"Welcome {username}, say hi!", addr)
@@ -36,11 +51,14 @@ class Rooms:
     def broadcast(self, msg, addr, username=None):
         if username is not None:
             log(f"{username}({self.__roomName}) > {msg}")
+        else:
+            log(msg)
 
         msg = msg.encode('utf-8')
 
         for user in self.__userList:
-            self.socket.sendto(msg, user)
+            if username != user:
+                self.socket.sendto(msg, user)
 
 
 class UDPServer:
@@ -70,6 +88,9 @@ class UDPServer:
         for user in list(self.__userList.keys()):
             self.socket.sendto(msg, self.__userList[user][0])
 
+    def get_user_count(self):
+        return len(self.__userList)
+
     def listen(self):
         while True:
             try:
@@ -79,22 +100,22 @@ class UDPServer:
                 method = data["method"]
 
                 if method == "CONNECT":
-                    token = secrets.token_urlsafe(16)
+                    token = secrets.token_urlsafe(8)
                     log(f"{addr[0]}:{addr[1]} connected to this server")
                     self.socket.sendto(token.encode('utf-8'), addr)
 
                 else:
-                    room = data["room"]
                     username = data["username"]
-                    msg = data["msg"]
+                    token = data["token"]
 
                     if method == "LOGIN":
+                        room = data["room"]
                         if username not in self.__userList.keys():
                             if room not in self.__roomList:
                                 self.__roomList[room] = Rooms(
                                     room, self.socket)
 
-                            userConf = [addr, room]
+                            userConf = [addr, room, token]
                             self.__userList[username] = userConf
                             self.__roomList[room].addUser(addr, username)
                             log(
@@ -105,30 +126,37 @@ class UDPServer:
 
                     elif method == "LOGOUT":
                         user_room = self.__userList[username][1]
+                        user_token = self.__userList[username][2]
 
-                        self.__roomList[user_room].delUser(addr, username)
-                        del self.__userList[username]
+                        if token == user_token:
+                            self.__roomList[user_room].delUser(addr, username)
+                            del self.__userList[username]
+
+                            if self.__roomList[user_room].get_user_count() == 0:
+                                del self.__roomList[user_room]
 
                     elif method == "SEND":
+                        msg = data["msg"]
                         user_room = self.__userList[username][1]
+                        user_token = self.__userList[username][2]
 
-                        self.__roomList[user_room].broadcast(
-                            msg, addr, username)
+                        if token == user_token:
+                            self.__roomList[user_room].broadcast(
+                                msg, addr, username)
 
                     else:
                         log(msg)
             except Exception as e:
-                print(e)
+                log(e)
                 continue
 
 
 def log(msg):
-    now = datetime.now()
+    time = datetime.time()
 
-    now = now.strftime("%H:%M:%S")
-    print(f"[{now}] {msg}")
+    time = time.strftime("%H:%M:%S")
+    print(f"[{time}] {msg}")
 
 
 server = UDPServer(IP_ADDRESS, PORT)
-print("HELLO")
 server.start()
