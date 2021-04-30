@@ -1,18 +1,6 @@
 import sys
 import json
 import socket
-import threading
-
-
-# class GUI:
-#     def __init__(self):
-#         QObject.__init__(self)
-
-#     getIp = Signal(str)
-#     getPort = Signal(int)
-#     getUsername = Signal(str)
-#     getRoom = Signal(str)
-#     addMsg = Signal(str)
 
 
 class Client:
@@ -146,9 +134,6 @@ def check_connection(addr, port):
         return token.decode('utf-8')
     else:
         print("Error server response. Please try again")
-
-# def toast(message):
-#     pass
 
 
 if __name__ == "__main__":
