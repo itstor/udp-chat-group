@@ -9,32 +9,69 @@ message format
 }
 '''
 from datetime import datetime
+import tkinter.scrolledtext
 import threading
 import argparse
 import secrets
+import tkinter
 import random
 import socket
+import time
 import json
 import sys
 
 
 parser = argparse.ArgumentParser(description='Hi, Anon server side')
-parser.add_argument('--ip', metavar='IP ADDRESS', required=True,
+parser.add_argument('-l', '--ip-address', dest='ip', metavar='IP ADDRESS', required=True,
                     help='Input server IP Address')
-parser.add_argument('-p', metavar='PORT', required=True,
+parser.add_argument('-p', '--port', dest='port', metavar='PORT', required=True,
                     help='Input server port')
+parser.add_argument('--no-gui', dest='no_gui', action='store_true',
+                    help='Set interface to CLI')
 
 arg = parser.parse_args()
 
 IP_ADDRESS = arg.ip
-PORT = int(arg.p)
+PORT = int(arg.port)
+ISGUI = arg.no_gui
+
+
+class Window:
+    def __init__(self, server):
+        self.server = server
+
+    def gui(self):
+        self.window = tkinter.Tk()
+
+        self.serverLabel = tkinter.Label(self.window, text=f"Hi, Anon! server")
+        self.serverLabel.config(font=('Arial', 12))
+        self.serverLabel.pack(padx=20, pady=20)
+
+        self.log = tkinter.scrolledtext.ScrolledText(self.window)
+        self.log.pack(padx=20, pady=5)
+        self.log.config(state='disabled')
+
+        self.stopButton = tkinter.Button(
+            self.window, text="Stop Server", command=self.server.stop)
+        self.stopButton.config(font=('Arial', 12))
+        self.stopButton.pack(padx=20, pady=5)
+
+        self.window.protocol('WM_DELETE_WINDOW', self.server.stop)
+
+        self.window.mainloop()
+
+    def add_log(self, msg):
+        self.log.config(state='normal')
+        self.log.insert('end', msg)
+        self.log.yview('end')
+        self.log.config(state='disabled')
 
 
 class Rooms:
     welcomeMsg = ["Welcome {}, say hi!",
                   "{} hooped into this room",
                   "{} just slid to this room",
-                  "Glad you are here, {}}",
+                  "Glad you are here, {}",
                   "Welcome {}, we hope you brought pizza"]
 
     def __init__(self, roomName, socket):
@@ -81,9 +118,11 @@ class UDPServer:
         self.__roomList = dict()
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.settimeout(1)
 
     def start(self):
         self.socket.bind((self.ip, self.port))
+        self.running = True
 
         log(f"Server running on {self.ip}:{self.port}")
         self.listen()
@@ -91,6 +130,8 @@ class UDPServer:
     def stop(self):
         log("Server stopped")
         self.server_broadcast("Server has been stopped")
+        self.running = False
+        window.window.destroy()
         self.socket.close()
         sys.exit()
 
@@ -109,6 +150,8 @@ class UDPServer:
         username = data['username']
         room = data['room']
         token = data['token']
+
+        print(token)
 
         if username not in self.__userList.keys():
             if room not in self.__roomList:
@@ -151,7 +194,7 @@ class UDPServer:
                 msg, addr, username)
 
     def listen(self):
-        while True:
+        while self.running:
             try:
                 data, addr = self.socket.recvfrom(1024)
                 data = data.decode('utf-8')
@@ -174,16 +217,35 @@ class UDPServer:
                     threading.Thread(target=self.send_msg,
                                      args=(addr, data)).start()
 
+                if self.running == False:
+                    break
+
+            except socket.timeout:
+                pass
             except Exception as e:
-                log(e)
+                log(str(e))
+        else:
+            print("Done")
 
 
 def log(msg):
     time = datetime.now()
 
     time = time.strftime("%H:%M:%S")
-    print(f"[{time}] {msg}")
+
+    if ISGUI:
+        print(f"[{time}] {msg}")
+    else:
+        window.add_log(msg + "\n")
 
 
 server = UDPServer(IP_ADDRESS, PORT)
-server.start()
+window = Window(server)
+
+window_thread = threading.Thread(target=window.gui)
+server_thread = threading.Thread(target=server.start)
+
+window_thread.start()
+time.sleep(3)
+server_thread.start()
+# server.start()
