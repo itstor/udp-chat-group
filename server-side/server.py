@@ -33,7 +33,7 @@ arg = parser.parse_args()
 
 IP_ADDRESS = arg.ip
 PORT = int(arg.port)
-ISGUI = arg.no_gui
+ISGUI = not arg.no_gui
 
 
 class Window:
@@ -128,11 +128,13 @@ class UDPServer:
         self.listen()
 
     def stop(self):
-        log("Server stopped")
         self.server_broadcast("Server has been stopped")
         self.running = False
-        window.window.destroy()
+        log("Server stopped")
+        if ISGUI:
+            window.window.destroy()
         self.socket.close()
+        print("Server Closed")
         sys.exit()
 
     def server_broadcast(self, msg):
@@ -217,9 +219,8 @@ class UDPServer:
                     threading.Thread(target=self.send_msg,
                                      args=(addr, data)).start()
 
-                if self.running == False:
-                    break
-
+            except KeyboardInterrupt:
+                self.stop()
             except socket.timeout:
                 pass
             except Exception as e:
@@ -230,22 +231,21 @@ class UDPServer:
 
 def log(msg):
     time = datetime.now()
-
     time = time.strftime("%H:%M:%S")
 
     if ISGUI:
-        print(f"[{time}] {msg}")
-    else:
         window.add_log(msg + "\n")
+    else:
+        print(f"[{time}] {msg}")
 
 
 server = UDPServer(IP_ADDRESS, PORT)
-window = Window(server)
 
-window_thread = threading.Thread(target=window.gui)
-server_thread = threading.Thread(target=server.start)
-
-window_thread.start()
-time.sleep(3)
-server_thread.start()
+if ISGUI:
+    window = Window(server)
+    window_thread = threading.Thread(target=window.gui).start()
+    time.sleep(3)
+    server_thread = threading.Thread(target=server.start).start()
+else:
+    server.start()
 # server.start()
