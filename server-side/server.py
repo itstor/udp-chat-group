@@ -42,6 +42,7 @@ class Window:
 
     def gui(self):
         self.window = tkinter.Tk()
+        self.window.title(f"Hi, Anon! Server [{IP_ADDRESS}:{PORT}]")
 
         self.serverLabel = tkinter.Label(self.window, text=f"Hi, Anon! server")
         self.serverLabel.config(font=('Arial', 12))
@@ -232,7 +233,7 @@ def log(msg):
     time = time.strftime("%H:%M:%S")
 
     if ISGUI:
-        window.add_log(msg + "\n")
+        window.add_log(f"[{time}]" + msg + "\n")
     else:
         print(f"[{time}] {msg}")
 
