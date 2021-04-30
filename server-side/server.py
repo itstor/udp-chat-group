@@ -153,8 +153,6 @@ class UDPServer:
         room = data['room']
         token = data['token']
 
-        print(token)
-
         if username not in self.__userList.keys():
             if room not in self.__roomList:
                 self.__roomList[room] = Rooms(
@@ -165,7 +163,7 @@ class UDPServer:
             self.__roomList[room].addUser(addr, username)
             log(
                 f"{addr[0]}:{addr[1]} with username {username} joined to {room}")
-
+            self.socket.sendto("[SUCCESS]".encode('utf-8'), addr)
             return
 
         self.socket.sendto("[!USRUNAVL]".encode('utf-8'), addr)
@@ -222,7 +220,7 @@ class UDPServer:
             except KeyboardInterrupt:
                 self.stop()
             except socket.timeout:
-                pass
+                continue
             except Exception as e:
                 log(str(e))
         else:
