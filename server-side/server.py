@@ -101,10 +101,12 @@ class Rooms:
     def broadcast(self, msg, addr, username=None):
         if username is not None:
             log(f"{username}({self.__roomName}) > {msg}")
+            msg = f'{{"response":"MESSAGE", "username":"{username}", "msg":"{msg}"}}'.encode(
+                'utf-8')
         else:
             log(msg)
-
-        msg = msg.encode('utf-8')
+            msg = f'{{"response":"LOG", "msg":"{msg}"}}'.encode(
+                'utf-8')
 
         for user_addr in self.__userList:
             if addr != user_addr:
@@ -139,7 +141,8 @@ class UDPServer:
         sys.exit()
 
     def server_broadcast(self, msg):
-        msg = msg.encode('utf-8')
+        msg = f'{{"response":"LOG", "msg":"{msg}"}}'.encode(
+            'utf-8')
 
         for user in list(self.__userList.keys()):
             self.socket.sendto(msg, self.__userList[user][0])
@@ -167,7 +170,7 @@ class UDPServer:
             self.socket.sendto("[SUCCESS]".encode('utf-8'), addr)
             return
 
-        self.socket.sendto("[!USRUNAVL]".encode('utf-8'), addr)
+        self.socket.sendto("[!USRUNAVL}".encode('utf-8'), addr)
 
     def user_logout(self, addr, data):
         token = data['token']
