@@ -1,7 +1,6 @@
-from PySide2.QtGui import QGuiApplication
+from PySide2.QtCore import QObject, QRunnable, QThreadPool, Slot, Signal
 from PySide2.QtQml import QQmlApplicationEngine
-from PySide2.QtCore import QObject, Slot, Signal
-import threading
+from PySide2.QtGui import QGuiApplication
 import socket
 import json
 import sys
@@ -9,6 +8,44 @@ import os
 
 client = None
 gui = None
+
+
+class WorkerSignal(QObject):
+    isRunning = Signal(bool)
+
+
+class Worker(QRunnable):
+    def __init__(self, socket):
+        super(Worker, self).__init__()
+        self.socket = socket
+        self.signal = WorkerSignal()
+
+        self.isRunning = self.signal.isRunning
+
+    @Slot()
+    def run(self):
+        self.socket.settimeout(1)
+
+        while self.isRunning:
+            print("Listening")
+            try:
+                data = self.socket.recv(1024)
+                data = data.decode('utf-8')
+                data = json.dumps(data)
+
+                resp = data["response"]
+                msg = data["msg"]
+
+                if resp == "LOG":
+                    gui.addChatBox(msg, "server", False)
+
+                elif resp == "MESSAGE":
+                    username = data['username']
+                    gui.addChatBox(msg, username, True)
+            except socket.timeout:
+                continue
+            except Exception as e:
+                print(e)
 
 
 class GUI(QObject):
@@ -24,7 +61,6 @@ class GUI(QObject):
     @Slot(str, int, str, str)
     def getInputData(self, ip, port, username, room):
         client.setup_connection(ip, port, username, room)
-        # print(ip, port, username, room)
 
     @Slot(str)
     def showToastBox(self, msg):
@@ -37,7 +73,6 @@ class GUI(QObject):
     @Slot(str)
     def getInputMsg(self, text):
         client.send_msg(text)
-        # print(text)
 
     @Slot(bool)
     def moveToChat(self, ismove):
@@ -57,6 +92,7 @@ class Client:
         self.__token = ""
         self.running = True
 
+        self.threadpool = QThreadPool()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def stop(self):
@@ -75,16 +111,7 @@ class Client:
             if self.user_login():
                 gui.moveToChat(True)
                 gui.setRoomName(self.__room)
-
-                # print(threading.active_count())
-
-                # recv_thread = threading.Thread(
-                #     target=self.listen(), daemon=True)
-                # recv_thread.start()
-
-    # def wait_user_input(self):
-    #     while True:
-    #         msg = get
+                self.start_listen()
 
     def check_connection(self):
         msg = '{"method":"CONNECT"}'
@@ -169,27 +196,9 @@ class Client:
 
         self.socket.send(msg)
 
-    def listen(self):
-        self.socket.settimeout(1)
-        print(threading.active_count())
-
-        while self.running:
-            try:
-                data = self.socket.recv(1024)
-                data = data.decode('utf-8')
-                data = json.dumps(data)
-
-                resp = data["response"]
-                msg = data["msg"]
-
-                if resp == "LOG":
-                    gui.addChatBox(msg, "server", False)
-
-                elif resp == "MESSAGE":
-                    username = data['username']
-                    gui.addChatBox(msg, username, True)
-            except:
-                continue
+    def start_listen(self):
+        worker = Worker(self.socket)
+        self.threadpool.start(worker)
 
 
 def check_connection(addr, port):
@@ -213,9 +222,6 @@ def check_connection(addr, port):
     else:
         print("Error server response. Please try again")
 
-# def toast(message):
-#     pass
-
 
 if __name__ == "__main__":
     app = QGuiApplication(sys.argv)
@@ -230,17 +236,3 @@ if __name__ == "__main__":
     if not engine.rootObjects():
         sys.exit(-1)
     sys.exit(app.exec_())
-
-    # token = ""
-
-    # while not token:
-    #     ip = input("Input Host IP: ")
-    #     try:
-    #         port = int(input("Input Host Port: "))
-    #     except ValueError:
-    #         print("Input hanya angka")
-    #         continue
-    #     token = check_connection(ip, port)
-
-    # client = Client(ip, port, token)
-    # client.start()
