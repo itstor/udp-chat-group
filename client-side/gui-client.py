@@ -10,17 +10,11 @@ client = None
 gui = None
 
 
-class WorkerSignal(QObject):
-    isRunning = Signal(bool)
-
-
 class Worker(QRunnable):
     def __init__(self, socket):
         super(Worker, self).__init__()
         self.socket = socket
-        self.signal = WorkerSignal()
-
-        self.isRunning = self.signal.isRunning
+        self.isRunning = True
 
     @Slot()
     def run(self):
@@ -46,6 +40,10 @@ class Worker(QRunnable):
                 continue
             except Exception as e:
                 print(e)
+
+    @Slot()
+    def stop(self):
+        self.isRunning = False
 
 
 class GUI(QObject):
@@ -90,14 +88,13 @@ class GUI(QObject):
 class Client:
     def __init__(self):
         self.__token = ""
-        self.running = True
+        self.isRunning = True
 
         self.threadpool = QThreadPool()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def stop(self):
-        self.running = False
-        self.user_logout()
+        self.worker.stop()
         sys.exit()
 
     def setup_connection(self, ip, port, username, room):
@@ -196,9 +193,11 @@ class Client:
 
         self.socket.send(msg)
 
+        self.stop()
+
     def start_listen(self):
-        worker = Worker(self.socket)
-        self.threadpool.start(worker)
+        self.worker = Worker(self.socket)
+        self.threadpool.start(self.worker)
 
 
 def check_connection(addr, port):
