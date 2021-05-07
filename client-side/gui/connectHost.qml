@@ -27,7 +27,7 @@ Window {
         width: 360
         height: 560
         color: "#201A30"
-        radius: 10
+        radius: 15
         anchors.verticalCenter: parent.verticalCenter
         anchors.horizontalCenter: parent.horizontalCenter
         z: 1

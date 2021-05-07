@@ -29,7 +29,7 @@ Window {
         width: 360
         height: 560
         color: "#201A30"
-        radius: 10
+        radius: 15
         anchors.verticalCenter: parent.verticalCenter
         anchors.horizontalCenter: parent.horizontalCenter
         z: 1
@@ -102,7 +102,7 @@ Window {
             id: roundedRect
             width: 360
             height: 57
-            radius: 9
+            radius: 15
             topRightCorner: true
             bottomRightCorner: false
             z: 0
@@ -115,7 +115,7 @@ Window {
             y: 503
             width: 360
             height: 57
-            radius: 9
+            radius: 15
             topLeftCorner: false
             bottomLeftCorner: true
             z: 0
