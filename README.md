@@ -1,4 +1,5 @@
 # UDP Based Group Chat
+Created during my internship on ICHIRO ITS.
 ## Usage
 + Server Side
     ```
